@@ -23,10 +23,12 @@ void list_employees(struct dbheader_t *dbhdr, struct employee_t *employees) {
 	}
 }
 
-int add_employee(struct dbheader_t *dbhdr, struct employee_t **employees, char *addstring) {
+int add_employee(struct dbheader_t *dbhdr, struct employee_t **employeeptr, char *addstring) {
+	printf("DB currently has %d\n", dbhdr->count);
+
 	if (dbhdr == NULL) return STATUS_ERROR;
-	if (employees == NULL) return STATUS_ERROR;
-	if (*employees == NULL) return STATUS_ERROR;
+	if (employeeptr == NULL) return STATUS_ERROR;
+	if (*employeeptr == NULL) return STATUS_ERROR;
 	if (addstring == NULL) return STATUS_ERROR;
 
 	char *name = strtok(addstring, ",");
@@ -36,24 +38,16 @@ int add_employee(struct dbheader_t *dbhdr, struct employee_t **employees, char *
 	if (addr == NULL) return STATUS_ERROR;
 
 	char *hours = strtok(NULL, ",");
-	if (hours == NULL) return STATUS_ERROR;
+	if (hours == NULL || atoi(hours) == 0) return STATUS_ERROR;
 
-	struct employee_t *e = *employees;
-	int new_count = dbhdr->count + 1;
-	e = realloc(e, sizeof(struct employee_t) * new_count);
+	dbhdr->count++;
+	*employeeptr = realloc(*employeeptr, dbhdr->count * sizeof(struct employee_t));
+	struct employee_t *employees = *employeeptr;
 
-	if (e == NULL) {
-		return STATUS_ERROR;
-	}
-
-	int i = dbhdr->count;
-	dbhdr->count = new_count;
-
-	strncpy(e[i].name, name, sizeof(e[i].name)-1);
-	strncpy(e[i].address, addr, sizeof(e[i].address)-1);
-	e[i].hours = atoi(hours);
-
-	*employees = e;
+	int i = dbhdr->count-1;
+	strncpy(employees[i].name, name, sizeof(employees[i].name)-1);
+	strncpy(employees[i].address, addr, sizeof(employees[i].address)-1);
+	employees[i].hours = atoi(hours);
 
 	return STATUS_SUCCESS;
 }
@@ -103,7 +97,13 @@ int output_file(int fd, struct dbheader_t *dbhdr, struct employee_t *employees) 
 	for (; i < realcount; i++) {
 		employees[i].hours = htonl(employees[i].hours);
 		write(fd, &employees[i], sizeof(struct employee_t));
+		employees[i].hours = ntohl(employees[i].hours);
 	}
+
+	dbhdr->magic = ntohl(dbhdr->magic);
+	dbhdr->filesize = ntohl(sizeof(struct dbheader_t) + (sizeof(struct employee_t) * realcount));
+	dbhdr->count = ntohs(dbhdr->count);
+	dbhdr->version = ntohs(dbhdr->version);
 
 	return 0;
 }	
